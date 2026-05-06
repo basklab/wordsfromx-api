@@ -59,11 +59,35 @@ export async function ensureSchema(): Promise<void> {
     )
   `;
 
+  await sql`
+    create table if not exists profiles (
+      id uuid primary key references auth.users(id) on delete cascade,
+      source_lang text not null default 'en',
+      target_lang text not null default 'ru',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `;
+
+  await sql`
+    create table if not exists vocab (
+      user_id uuid not null references auth.users(id) on delete cascade,
+      source_lang text not null,
+      lemma text not null,
+      exposures integer not null default 1,
+      status text not null default 'tracking' check (status in ('tracking', 'known', 'ignored')),
+      first_seen timestamptz not null default now(),
+      last_seen timestamptz not null default now(),
+      primary key (user_id, source_lang, lemma)
+    )
+  `;
+
   await seedTestUser();
   await sql`alter table books add column if not exists updated_at timestamptz not null default now()`;
   await sql`create index if not exists books_user_id_idx on books(user_id)`;
   await sql`create index if not exists book_chapters_book_id_idx on book_chapters(book_id)`;
   await sql`create index if not exists translations_term_idx on translations(source_lang, target_lang, kind, term)`;
+  await sql`create index if not exists vocab_user_status_idx on vocab(user_id, status, last_seen desc)`;
 }
 
 async function seedTestUser(): Promise<void> {

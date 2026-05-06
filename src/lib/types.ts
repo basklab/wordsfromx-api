@@ -29,3 +29,21 @@ export type BookSummary = Omit<Book, "chapters"> & {
 export type Library = {
   books: Book[];
 };
+
+export type Profile = {
+  id: string;
+  sourceLang: string;
+  targetLang: string;
+};
+
+export type VocabStatus = "tracking" | "known" | "ignored";
+
+export type VocabRow = {
+  userId: string;
+  sourceLang: string;
+  lemma: string;
+  exposures: number;
+  status: VocabStatus;
+  firstSeen: string;
+  lastSeen: string;
+};
