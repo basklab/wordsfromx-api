@@ -5,7 +5,13 @@ if (!env.databaseUrl) {
   throw new Error("Database connection string is required. Set POSTGRES_URL.");
 }
 
-export const sql = postgres(env.databaseUrl, { prepare: false });
+export const sql = postgres(env.databaseUrl, {
+  prepare: false,
+  onnotice: (notice) => {
+    if (notice.code === "42P07") return;
+    console.log(notice);
+  },
+});
 
 export const TEST_USER = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -83,7 +89,6 @@ export async function ensureSchema(): Promise<void> {
   `;
 
   await seedTestUser();
-  await sql`alter table books add column if not exists updated_at timestamptz not null default now()`;
   await sql`create index if not exists books_user_id_idx on books(user_id)`;
   await sql`create index if not exists book_chapters_book_id_idx on book_chapters(book_id)`;
   await sql`create index if not exists translations_term_idx on translations(source_lang, target_lang, kind, term)`;
