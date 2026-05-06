@@ -12,7 +12,7 @@ import { vocabRoutes } from "./routes/vocab";
 await ensureSchema();
 
 export const app = new Elysia()
-  .use(cors({ origin: env.webOrigin, credentials: true }))
+  .use(cors({ origin: env.webOrigins, credentials: true }))
   .get("/health", () => ({ ok: true }))
   .use(authRoutes)
   .use(bookRoutes)
