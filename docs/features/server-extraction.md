@@ -2,7 +2,7 @@
 
 ## Status
 
-`wordsfromx--api-elysia` is the standalone Elysia API extracted from the Solid
+`wordsfromx-api--elysia` is the standalone Elysia API extracted from the Solid
 and Ripple Elysia worktrees.
 
 ## Implementation
@@ -18,8 +18,8 @@ and Ripple Elysia worktrees.
 The server runs directly from the repo root with Bun:
 
 ```sh
-pnpm install
-pnpm dev
+bun install
+bun dev
 ```
 
 ## Source Worktrees
@@ -31,8 +31,8 @@ pnpm dev
 
 ## Known Gaps
 
-- Clients still need to be pointed at this API repo instead of their local
-  `apps/api` packages.
+- The Solid and Ripple clients point at this API repo through local package
+  links and `VITE_API_URL`.
 - OpenAPI generation is not wired yet.
 - The server currently uses the Ripple local JWT auth approach; production
   Supabase Auth verification can be added behind the same route boundary later.
