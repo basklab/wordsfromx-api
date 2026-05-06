@@ -1,0 +1,26 @@
+{
+  "name": "@wordsfromx/api-elysia",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --target bun --outdir dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.1.1",
+    "elysia": "^1.1.24",
+    "fflate": "^0.8.2",
+    "jose": "^6.2.3",
+    "node-html-parser": "^6.1.13",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.10",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@9.12.0"
+}
