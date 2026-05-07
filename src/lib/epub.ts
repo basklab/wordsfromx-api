@@ -1,18 +1,25 @@
-import { unzipSync, strFromU8 } from "fflate";
-import { parse as parseHtml } from "node-html-parser";
-
 export type ParsedChapter = { idx: number; title: string; content: string };
 export type ParsedBook = { title: string; author: string | null; chapters: ParsedChapter[] };
 
-export async function parseEpub(bytes: Uint8Array): Promise<ParsedBook> {
-  const files = unzipSync(bytes);
+let fflateMod: typeof import("fflate") | null = null;
+let htmlMod: typeof import("node-html-parser") | null = null;
 
-  const containerXml = readText(files, "META-INF/container.xml");
+async function loadDeps() {
+  if (!fflateMod) fflateMod = await import("fflate");
+  if (!htmlMod) htmlMod = await import("node-html-parser");
+  return { fflate: fflateMod, html: htmlMod };
+}
+
+export async function parseEpub(bytes: Uint8Array): Promise<ParsedBook> {
+  const { fflate, html } = await loadDeps();
+  const files = fflate.unzipSync(bytes);
+
+  const containerXml = readText(fflate, files, "META-INF/container.xml");
   if (!containerXml) throw new Error("EPUB is missing META-INF/container.xml");
   const opfPath = matchAttr(containerXml, "rootfile", "full-path");
   if (!opfPath) throw new Error("EPUB is missing its package document path");
 
-  const opfXml = readText(files, opfPath);
+  const opfXml = readText(fflate, files, opfPath);
   if (!opfXml) throw new Error(`EPUB is missing package document at ${opfPath}`);
   const opfDir = opfPath.includes("/") ? opfPath.slice(0, opfPath.lastIndexOf("/") + 1) : "";
 
@@ -39,10 +46,10 @@ export async function parseEpub(bytes: Uint8Array): Promise<ParsedBook> {
     if (!href) continue;
 
     const path = normalizePath(opfDir + decodeURIComponent(href));
-    const xhtml = readText(files, path);
+    const xhtml = readText(fflate, files, path);
     if (!xhtml) continue;
 
-    const extracted = extractText(xhtml);
+    const extracted = extractText(html, xhtml);
     if (!extracted.content.trim()) continue;
 
     chapters.push({
@@ -56,11 +63,15 @@ export async function parseEpub(bytes: Uint8Array): Promise<ParsedBook> {
   return { title, author: author ? decodeEntities(author) : null, chapters };
 }
 
-function readText(files: Record<string, Uint8Array>, path: string): string | null {
-  if (files[path]) return strFromU8(files[path]!);
+function readText(
+  fflate: typeof import("fflate"),
+  files: Record<string, Uint8Array>,
+  path: string,
+): string | null {
+  if (files[path]) return fflate.strFromU8(files[path]!);
   const lower = path.toLowerCase();
   for (const key of Object.keys(files)) {
-    if (key.toLowerCase() === lower) return strFromU8(files[key]!);
+    if (key.toLowerCase() === lower) return fflate.strFromU8(files[key]!);
   }
   return null;
 }
@@ -87,8 +98,11 @@ function normalizePath(path: string): string {
   return parts.join("/");
 }
 
-function extractText(xhtml: string): { title: string | null; content: string } {
-  const root = parseHtml(xhtml, { lowerCaseTagName: true });
+function extractText(
+  html: typeof import("node-html-parser"),
+  xhtml: string,
+): { title: string | null; content: string } {
+  const root = html.parse(xhtml, { lowerCaseTagName: true });
   const title = root.querySelector("h1, h2, h3")?.text.replace(/\s+/g, " ").trim() || null;
   const blocks = root.querySelectorAll("p, h1, h2, h3, h4, blockquote, li");
   const paragraphs = blocks
