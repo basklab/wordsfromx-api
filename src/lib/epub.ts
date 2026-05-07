@@ -97,7 +97,6 @@ function normalizePath(path: string): string {
 }
 
 const headingTags = new Set(["h1", "h2", "h3"]);
-const blockTags = new Set(["h1", "h2", "h3", "h4", "p", "blockquote", "li"]);
 
 async function extractText(xhtml: string): Promise<{ title: string | null; content: string }> {
   let title: string | null = null;
