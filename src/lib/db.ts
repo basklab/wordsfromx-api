@@ -1,17 +1,10 @@
-import postgres from "postgres";
 import { env } from "../env";
 
 if (!env.databaseUrl) {
   throw new Error("Database connection string is required. Set POSTGRES_URL.");
 }
 
-export const sql = postgres(env.databaseUrl, {
-  prepare: false,
-  onnotice: (notice) => {
-    if (notice.code === "42P07") return;
-    console.log(notice);
-  },
-});
+export const sql = new Bun.SQL({ url: env.databaseUrl, prepare: false });
 
 export const TEST_USER = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -117,7 +110,7 @@ async function seedTestUser(): Promise<void> {
       '',
       now(),
       '{"provider":"email","providers":["email"]}'::jsonb,
-      ${sql.json({ name: TEST_USER.name })},
+      ${JSON.stringify({ name: TEST_USER.name })}::jsonb,
       now(),
       now()
     )
