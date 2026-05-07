@@ -5,9 +5,11 @@
   "type": "module",
   "main": "src/index.ts",
   "exports": {
+    ".": {
+      "types": "./src/index.ts"
+    },
     "./app": {
-      "types": "./src/app.ts",
-      "default": "./src/app.ts"
+      "types": "./src/app.ts"
     },
     "./types": {
       "types": "./src/lib/types.ts",

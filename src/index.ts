@@ -1,16 +1,13 @@
-import { env } from "./env";
 import { app } from "./app";
-import { ensureSchema } from "./lib/db";
+import { env } from "./env";
 
-async function main(): Promise<void> {
+export type { App } from "./app";
+export default app;
+
+if (import.meta.main) {
+  const { ensureSchema } = await import("./lib/db");
   await ensureSchema();
-
   console.log("Running on Bun version:", process.versions.bun);
   app.listen(env.port);
   console.log(`api: http://127.0.0.1:${env.port}`);
 }
-
-main().catch((err) => {
-  console.error("Failed to start API:", err);
-  process.exit(1);
-});
