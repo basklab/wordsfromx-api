@@ -1,15 +1,13 @@
-import { paginateChapter } from "./paging";
+import { paginateBook } from "./paging";
 import { sql } from "./db";
-import type { Book, BookSummary, Chapter } from "./types";
+import type { Book, BookSummary } from "./types";
 
 type BookRow = {
   id: number;
   user_id: string;
   title: string;
   author: string | null;
-  current_chapter: number;
   current_page: number;
-  chapter_count: number;
   token_count: number;
   page_count?: number;
   created_at: Date | string;
@@ -28,9 +26,7 @@ export async function listBooks(userId: string): Promise<BookSummary[]> {
       b.user_id,
       b.title,
       b.author,
-      b.current_chapter,
       b.current_page,
-      b.chapter_count,
       b.token_count,
       b.created_at,
       coalesce(sum(greatest(1, ceil(length(c.content)::numeric / 1600))), 0)::int as page_count
@@ -47,10 +43,8 @@ export async function listBooks(userId: string): Promise<BookSummary[]> {
     title: row.title,
     author: row.author,
     fileName: row.title,
-    chapterIdx: row.current_chapter,
     pageIdx: row.current_page,
     createdAt: toIso(row.created_at),
-    chapterCount: row.chapter_count,
     pageCount: row.page_count ?? 0,
   }));
 }
@@ -60,7 +54,7 @@ export async function getBook(userId: string, id: string): Promise<Book | null> 
   if (!Number.isInteger(bookId)) return null;
 
   const rows = await sql<BookRow[]>`
-    select id, user_id, title, author, current_chapter, current_page, chapter_count, token_count, created_at
+    select id, user_id, title, author, current_page, token_count, created_at
     from books
     where id = ${bookId} and user_id = ${userId}
     limit 1
@@ -75,11 +69,9 @@ export async function getBook(userId: string, id: string): Promise<Book | null> 
     order by position
   `;
 
-  const chapters = chapterRows.map((chapter): Chapter => ({
-    idx: chapter.position,
-    title: chapter.title,
-    pages: paginateChapter(chapter.content),
-  }));
+  const pages = paginateBook(
+    chapterRows.map((c) => ({ idx: c.position, title: c.title, content: c.content })),
+  );
 
   return {
     id: String(row.id),
@@ -87,47 +79,47 @@ export async function getBook(userId: string, id: string): Promise<Book | null> 
     title: row.title,
     author: row.author,
     fileName: row.title,
-    chapterIdx: row.current_chapter,
     pageIdx: row.current_page,
     createdAt: toIso(row.created_at),
-    chapters,
+    pages,
   };
 }
 
-export async function saveBook(book: Book): Promise<Book> {
+export type RawChapter = { idx: number; title: string; content: string };
+
+export async function saveBook(
+  meta: { userId: string; title: string; author: string | null; fileName: string },
+  chapters: RawChapter[],
+): Promise<string> {
   const inserted = await sql.begin(async (tx) => {
     const bookRows = await tx<Array<{ id: number }>>`
       insert into books (
         user_id, title, author, language, target_lang, chapter_count, token_count
       )
       values (
-        ${book.userId},
-        ${book.title},
-        ${book.author},
+        ${meta.userId},
+        ${meta.title},
+        ${meta.author},
         'en',
         'en',
-        ${book.chapters.length},
-        ${book.chapters.reduce((sum, chapter) => sum + countTokens(chapter.pages.map((page) => page.text).join(" ")), 0)}
+        ${chapters.length},
+        ${chapters.reduce((sum, c) => sum + countTokens(c.content), 0)}
       )
       returning id
     `;
     const insertedBook = bookRows[0]!;
 
-    for (const chapter of book.chapters) {
-      const content = chapter.pages.map((page) => page.text).join("\n\n");
+    for (const chapter of chapters) {
       await tx`
         insert into book_chapters (book_id, position, title, content, token_count)
-        values (${insertedBook.id}, ${chapter.idx}, ${chapter.title}, ${content}, ${countTokens(content)})
+        values (${insertedBook.id}, ${chapter.idx}, ${chapter.title}, ${chapter.content}, ${countTokens(chapter.content)})
       `;
     }
 
     return insertedBook;
   });
 
-  return {
-    ...book,
-    id: String(inserted.id),
-  };
+  return String(inserted.id);
 }
 
 export async function deleteBook(userId: string, id: string): Promise<boolean> {
@@ -137,12 +129,12 @@ export async function deleteBook(userId: string, id: string): Promise<boolean> {
   return result.count > 0;
 }
 
-export async function updateProgress(userId: string, id: string, chapterIdx: number, pageIdx: number): Promise<Book | null> {
+export async function updateProgress(userId: string, id: string, pageIdx: number): Promise<Book | null> {
   const bookId = Number(id);
   if (!Number.isInteger(bookId)) return null;
   const result = await sql`
     update books
-    set current_chapter = ${chapterIdx}, current_page = ${pageIdx}, updated_at = now()
+    set current_page = ${pageIdx}, updated_at = now()
     where id = ${bookId} and user_id = ${userId}
   `;
   if (result.count === 0) return null;
@@ -156,11 +148,9 @@ export function summaryOf(book: Book): BookSummary {
     title: book.title,
     author: book.author,
     fileName: book.fileName,
-    chapterIdx: book.chapterIdx,
     pageIdx: book.pageIdx,
     createdAt: book.createdAt,
-    chapterCount: book.chapters.length,
-    pageCount: book.chapters.reduce((sum, chapter) => sum + chapter.pages.length, 0),
+    pageCount: book.pages.length,
   };
 }
 

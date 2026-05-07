@@ -1,12 +1,7 @@
 export type Page = {
   idx: number;
   text: string;
-};
-
-export type Chapter = {
-  idx: number;
-  title: string;
-  pages: Page[];
+  chapterTitle?: string;
 };
 
 export type Book = {
@@ -15,14 +10,12 @@ export type Book = {
   title: string;
   author: string | null;
   fileName: string;
-  chapterIdx: number;
   pageIdx: number;
   createdAt: string;
-  chapters: Chapter[];
+  pages: Page[];
 };
 
-export type BookSummary = Omit<Book, "chapters"> & {
-  chapterCount: number;
+export type BookSummary = Omit<Book, "pages"> & {
   pageCount: number;
 };
 

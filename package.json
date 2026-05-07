@@ -4,6 +4,16 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
+  "exports": {
+    "./app": {
+      "types": "./src/app.ts",
+      "default": "./src/app.ts"
+    },
+    "./types": {
+      "types": "./src/lib/types.ts",
+      "default": "./src/lib/types.ts"
+    }
+  },
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
