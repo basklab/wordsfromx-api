@@ -1,16 +1,7 @@
 import { sql } from "./db";
 import { translateMyMemory } from "./mymemory";
 import { saveCachedTranslation } from "./translations";
-import type { VocabStatus } from "./types";
-
-export type AnnotatedToken =
-  | string
-  | {
-      w: string;
-      lemma: string;
-      status?: VocabStatus;
-      t?: string;
-    };
+import type { AnnotatedToken, VocabStatus } from "./types";
 
 const WORD_RE = /^\p{L}[\p{L}\p{M}'’-]*$/u;
 const SPLIT_RE = /(\s+|[.,!?;:"“”‘’()\[\]—–-])/u;

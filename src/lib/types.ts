@@ -31,6 +31,15 @@ export type Profile = {
 
 export type VocabStatus = "tracking" | "known" | "ignored";
 
+export type AnnotatedToken =
+  | string
+  | {
+      w: string;
+      lemma: string;
+      status?: VocabStatus;
+      t?: string;
+    };
+
 export type VocabRow = {
   userId: string;
   sourceLang: string;
