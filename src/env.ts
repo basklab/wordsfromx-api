@@ -10,11 +10,19 @@ const webOrigins = (
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const databaseUrl = first(
+  Bun.env.DATABASE_URL,
+  Bun.env.POSTGRES_URL,
+  Bun.env.POSTGRES_PRISMA_URL,
+  Bun.env.POSTGRES_URL_NON_POOLING,
+);
+
+const neonAuthBaseUrl = first(Bun.env.NEON_AUTH_BASE_URL, Bun.env.VITE_NEON_AUTH_URL)?.replace(/\/$/, "");
+
 export const env = {
   port: Number(first(Bun.env.PORT, Bun.env.API_PORT) ?? 3001),
   webOrigins,
-  databaseUrl: first(Bun.env.POSTGRES_URL, Bun.env.POSTGRES_PRISMA_URL, Bun.env.POSTGRES_URL_NON_POOLING),
-  supabaseUrl: Bun.env.SUPABASE_URL?.replace(/\/$/, "") ?? "http://local.supabase:8000",
-  supabaseJwtSecret: Bun.env.SUPABASE_JWT_SECRET,
+  databaseUrl,
+  neonAuthBaseUrl,
   myMemoryEmail: Bun.env.MYMEMORY_EMAIL ?? "",
 };
