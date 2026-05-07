@@ -1,20 +1,15 @@
-import { sql } from "./db";
+import { eq } from "drizzle-orm";
+import { db } from "../db";
+import { profiles } from "../db/schema";
 import type { Profile } from "./types";
 
-type ProfileRow = {
-  id: string;
-  source_lang: string;
-  target_lang: string;
-};
-
 export async function getProfile(userId: string): Promise<Profile> {
-  const rows = await sql<ProfileRow[]>`
-    insert into profiles (id)
-    values (${userId})
-    on conflict (id) do update set id = excluded.id
-    returning id, source_lang, target_lang
-  `;
-  return mapProfile(rows[0]!);
+  const rows = await db
+    .insert(profiles)
+    .values({ id: userId })
+    .onConflictDoUpdate({ target: profiles.id, set: { id: userId } })
+    .returning({ id: profiles.id, sourceLang: profiles.sourceLang, targetLang: profiles.targetLang });
+  return rows[0]!;
 }
 
 export async function updateProfile(
@@ -22,22 +17,14 @@ export async function updateProfile(
   patch: Partial<Pick<Profile, "sourceLang" | "targetLang">>,
 ): Promise<Profile> {
   const existing = await getProfile(userId);
-  const rows = await sql<ProfileRow[]>`
-    update profiles
-    set
-      source_lang = ${patch.sourceLang ?? existing.sourceLang},
-      target_lang = ${patch.targetLang ?? existing.targetLang},
-      updated_at = now()
-    where id = ${userId}
-    returning id, source_lang, target_lang
-  `;
-  return mapProfile(rows[0]!);
-}
-
-function mapProfile(row: ProfileRow): Profile {
-  return {
-    id: row.id,
-    sourceLang: row.source_lang,
-    targetLang: row.target_lang,
-  };
+  const rows = await db
+    .update(profiles)
+    .set({
+      sourceLang: patch.sourceLang ?? existing.sourceLang,
+      targetLang: patch.targetLang ?? existing.targetLang,
+      updatedAt: new Date(),
+    })
+    .where(eq(profiles.id, userId))
+    .returning({ id: profiles.id, sourceLang: profiles.sourceLang, targetLang: profiles.targetLang });
+  return rows[0]!;
 }

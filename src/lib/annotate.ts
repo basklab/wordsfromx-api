@@ -1,4 +1,6 @@
-import { sql } from "./db";
+import { and, eq, inArray } from "drizzle-orm";
+import { db } from "../db";
+import { translations, vocab } from "../db/schema";
 import { translateMyMemory } from "./mymemory";
 import { saveCachedTranslation } from "./translations";
 import type { AnnotatedToken, VocabStatus } from "./types";
@@ -32,13 +34,13 @@ export async function annotatePage(
 
   const statuses = await loadVocabStatuses(userId, source, [...lemmas]);
   const unknown = [...lemmas].filter((l) => !statuses.has(l));
-  const translations = await loadTranslations(source, target, unknown);
+  const translationsByLemma = await loadTranslations(source, target, unknown);
 
   return tokens.map((tok): AnnotatedToken => {
     if (tok.kind === "raw") return tok.text;
     const lemma = lemmaOf(tok.text);
     const status = statuses.get(lemma);
-    const translation = status ? undefined : translations.get(lemma);
+    const translation = status ? undefined : translationsByLemma.get(lemma);
     return {
       w: tok.text,
       lemma,
@@ -54,14 +56,11 @@ async function loadVocabStatuses(
   lemmas: string[],
 ): Promise<Map<string, VocabStatus>> {
   if (!lemmas.length) return new Map();
-  const rows = await sql<Array<{ lemma: string; status: VocabStatus }>>`
-    select lemma, status
-    from vocab
-    where user_id = ${userId}
-      and source_lang = ${source}
-      and lemma = any(${lemmas}::text[])
-  `;
-  return new Map(rows.map((r) => [r.lemma, r.status]));
+  const rows = await db
+    .select({ lemma: vocab.lemma, status: vocab.status })
+    .from(vocab)
+    .where(and(eq(vocab.userId, userId), eq(vocab.sourceLang, source), inArray(vocab.lemma, lemmas)));
+  return new Map(rows.map((r) => [r.lemma, r.status as VocabStatus]));
 }
 
 async function loadTranslations(
@@ -72,14 +71,17 @@ async function loadTranslations(
   const out = new Map<string, string>();
   if (!lemmas.length) return out;
 
-  const cached = await sql<Array<{ term: string; translation: string }>>`
-    select term, translation
-    from translations
-    where source_lang = ${source}
-      and target_lang = ${target}
-      and kind = 'word'
-      and term = any(${lemmas}::text[])
-  `;
+  const cached = await db
+    .select({ term: translations.term, translation: translations.translation })
+    .from(translations)
+    .where(
+      and(
+        eq(translations.sourceLang, source),
+        eq(translations.targetLang, target),
+        eq(translations.kind, "word"),
+        inArray(translations.term, lemmas),
+      ),
+    );
   for (const row of cached) out.set(row.term, row.translation);
 
   const missing = lemmas.filter((l) => !out.has(l));

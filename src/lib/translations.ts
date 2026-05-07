@@ -1,4 +1,6 @@
-import { sql } from "./db";
+import { and, eq } from "drizzle-orm";
+import { db } from "../db";
+import { translations } from "../db/schema";
 
 export type TranslationKind = "word" | "sentence";
 
@@ -8,15 +10,18 @@ export async function getCachedTranslation(
   kind: TranslationKind,
   term: string,
 ): Promise<string | null> {
-  const rows = await sql<Array<{ translation: string }>>`
-    select translation
-    from translations
-    where source_lang = ${source}
-      and target_lang = ${target}
-      and kind = ${kind}
-      and term = ${term}
-    limit 1
-  `;
+  const rows = await db
+    .select({ translation: translations.translation })
+    .from(translations)
+    .where(
+      and(
+        eq(translations.sourceLang, source),
+        eq(translations.targetLang, target),
+        eq(translations.kind, kind),
+        eq(translations.term, term),
+      ),
+    )
+    .limit(1);
   return rows[0]?.translation ?? null;
 }
 
@@ -28,10 +33,11 @@ export async function saveCachedTranslation(
   translation: string,
   provider = "mymemory",
 ): Promise<void> {
-  await sql`
-    insert into translations (source_lang, target_lang, kind, term, translation, provider)
-    values (${source}, ${target}, ${kind}, ${term}, ${translation}, ${provider})
-    on conflict (source_lang, target_lang, kind, term)
-    do update set translation = excluded.translation, provider = excluded.provider
-  `;
+  await db
+    .insert(translations)
+    .values({ sourceLang: source, targetLang: target, kind, term, translation, provider })
+    .onConflictDoUpdate({
+      target: [translations.sourceLang, translations.targetLang, translations.kind, translations.term],
+      set: { translation, provider },
+    });
 }

@@ -1,18 +1,13 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { eq } from "drizzle-orm";
 import { env } from "../env";
-import { sql } from "./db";
+import { db } from "../db";
+import { neonAuthUser } from "../db/schema";
 
 export type AuthUser = {
   id: string;
   email: string;
   name: string;
-  image: string | null;
-};
-
-type UserRow = {
-  id: string;
-  email: string | null;
-  name: string | null;
   image: string | null;
 };
 
@@ -44,12 +39,11 @@ export async function userFromAuthHeader(authorization: string | null | undefine
 }
 
 async function userById(id: string): Promise<AuthUser | null> {
-  const rows = await sql<UserRow[]>`
-    select id, email, name, image
-    from neon_auth."user"
-    where id = ${id}
-    limit 1
-  `;
+  const rows = await db
+    .select({ id: neonAuthUser.id, email: neonAuthUser.email, name: neonAuthUser.name, image: neonAuthUser.image })
+    .from(neonAuthUser)
+    .where(eq(neonAuthUser.id, id))
+    .limit(1);
   const row = rows[0];
   if (!row?.email) return null;
   return {

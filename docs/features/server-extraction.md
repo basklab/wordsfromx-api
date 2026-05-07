@@ -12,7 +12,9 @@ and Ripple Elysia worktrees.
 - Book routes: `src/routes/books.ts`
 - EPUB parse route: `src/routes/epub.ts`
 - Translation route: `src/routes/translate.ts`
-- Postgres schema bootstrap: `src/lib/db.ts` (Neon, FKs to `neon_auth."user"`)
+- Drizzle ORM client: `src/db/index.ts` (Neon HTTP)
+- Drizzle schema: `src/db/schema.ts` (FKs to `neon_auth."user"`)
+- SQL migrations: `drizzle/*.sql`, applied at deploy via `bun run db:migrate`
 - Auth verification: `src/lib/auth.ts` (Neon Auth JWKS via `jose`)
 - EPUB, text, paging, and book domain helpers: `src/lib/*`
 

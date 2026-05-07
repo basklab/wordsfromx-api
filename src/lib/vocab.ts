@@ -1,35 +1,31 @@
-import { sql } from "./db";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { db } from "../db";
+import { vocab } from "../db/schema";
 import type { VocabRow, VocabStatus } from "./types";
 
-type VocabDbRow = {
-  user_id: string;
-  source_lang: string;
-  lemma: string;
-  exposures: number;
-  status: VocabStatus;
-  first_seen: Date | string;
-  last_seen: Date | string;
-};
+type Row = typeof vocab.$inferSelect;
 
 export async function listVocab(userId: string, sourceLang: string): Promise<VocabRow[]> {
-  const rows = await sql<VocabDbRow[]>`
-    select user_id, source_lang, lemma, exposures, status, first_seen, last_seen
-    from vocab
-    where user_id = ${userId} and source_lang = ${sourceLang}
-    order by last_seen desc
-  `;
+  const rows = await db
+    .select()
+    .from(vocab)
+    .where(and(eq(vocab.userId, userId), eq(vocab.sourceLang, sourceLang)))
+    .orderBy(desc(vocab.lastSeen));
   return rows.map(mapVocab);
 }
 
 export async function trackExposure(userId: string, sourceLang: string, lemma: string): Promise<VocabRow> {
-  const rows = await sql<VocabDbRow[]>`
-    insert into vocab (user_id, source_lang, lemma, exposures, status, first_seen, last_seen)
-    values (${userId}, ${sourceLang}, ${lemma}, 1, 'tracking', now(), now())
-    on conflict (user_id, source_lang, lemma) do update set
-      exposures = vocab.exposures + 1,
-      last_seen = now()
-    returning user_id, source_lang, lemma, exposures, status, first_seen, last_seen
-  `;
+  const rows = await db
+    .insert(vocab)
+    .values({ userId, sourceLang, lemma, exposures: 1, status: "tracking" })
+    .onConflictDoUpdate({
+      target: [vocab.userId, vocab.sourceLang, vocab.lemma],
+      set: {
+        exposures: sql`${vocab.exposures} + 1`,
+        lastSeen: sql`now()`,
+      },
+    })
+    .returning();
   return mapVocab(rows[0]!);
 }
 
@@ -39,29 +35,25 @@ export async function setVocabStatus(
   lemma: string,
   status: VocabStatus,
 ): Promise<VocabRow> {
-  const rows = await sql<VocabDbRow[]>`
-    insert into vocab (user_id, source_lang, lemma, exposures, status, first_seen, last_seen)
-    values (${userId}, ${sourceLang}, ${lemma}, 0, ${status}, now(), now())
-    on conflict (user_id, source_lang, lemma) do update set
-      status = excluded.status,
-      last_seen = now()
-    returning user_id, source_lang, lemma, exposures, status, first_seen, last_seen
-  `;
+  const rows = await db
+    .insert(vocab)
+    .values({ userId, sourceLang, lemma, exposures: 0, status })
+    .onConflictDoUpdate({
+      target: [vocab.userId, vocab.sourceLang, vocab.lemma],
+      set: { status, lastSeen: sql`now()` },
+    })
+    .returning();
   return mapVocab(rows[0]!);
 }
 
-function mapVocab(row: VocabDbRow): VocabRow {
+function mapVocab(row: Row): VocabRow {
   return {
-    userId: row.user_id,
-    sourceLang: row.source_lang,
+    userId: row.userId,
+    sourceLang: row.sourceLang,
     lemma: row.lemma,
     exposures: row.exposures,
-    status: row.status,
-    firstSeen: toIso(row.first_seen),
-    lastSeen: toIso(row.last_seen),
+    status: row.status as VocabStatus,
+    firstSeen: row.firstSeen.toISOString(),
+    lastSeen: row.lastSeen.toISOString(),
   };
-}
-
-function toIso(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
