@@ -2,7 +2,7 @@ import { app } from "./app";
 import { env } from "./env";
 
 export type { App } from "./app";
-export default app;
+export default { fetch: app.fetch };
 
 if (import.meta.main) {
   const { ensureSchema } = await import("./lib/db");
