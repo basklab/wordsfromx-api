@@ -2,16 +2,14 @@ export type ParsedChapter = { idx: number; title: string; content: string };
 export type ParsedBook = { title: string; author: string | null; chapters: ParsedChapter[] };
 
 let fflateMod: typeof import("fflate") | null = null;
-let htmlMod: typeof import("node-html-parser") | null = null;
 
-async function loadDeps() {
+async function loadFflate() {
   if (!fflateMod) fflateMod = await import("fflate");
-  if (!htmlMod) htmlMod = await import("node-html-parser");
-  return { fflate: fflateMod, html: htmlMod };
+  return fflateMod;
 }
 
 export async function parseEpub(bytes: Uint8Array): Promise<ParsedBook> {
-  const { fflate, html } = await loadDeps();
+  const fflate = await loadFflate();
   const files = fflate.unzipSync(bytes);
 
   const containerXml = readText(fflate, files, "META-INF/container.xml");
@@ -49,7 +47,7 @@ export async function parseEpub(bytes: Uint8Array): Promise<ParsedBook> {
     const xhtml = readText(fflate, files, path);
     if (!xhtml) continue;
 
-    const extracted = extractText(html, xhtml);
+    const extracted = await extractText(xhtml);
     if (!extracted.content.trim()) continue;
 
     chapters.push({
@@ -98,24 +96,62 @@ function normalizePath(path: string): string {
   return parts.join("/");
 }
 
-function extractText(
-  html: typeof import("node-html-parser"),
-  xhtml: string,
-): { title: string | null; content: string } {
-  const root = html.parse(xhtml, { lowerCaseTagName: true });
-  const title = root.querySelector("h1, h2, h3")?.text.replace(/\s+/g, " ").trim() || null;
-  const blocks = root.querySelectorAll("p, h1, h2, h3, h4, blockquote, li");
-  const paragraphs = blocks
-    .map((block) => block.text.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
+const headingTags = new Set(["h1", "h2", "h3"]);
+const blockTags = new Set(["h1", "h2", "h3", "h4", "p", "blockquote", "li"]);
+
+async function extractText(xhtml: string): Promise<{ title: string | null; content: string }> {
+  let title: string | null = null;
+  const paragraphs: string[] = [];
+  let buf = "";
+  let activeTag: string | null = null;
+  let bodyBuf = "";
+  let inBody = false;
+
+  const rewriter = new HTMLRewriter();
+
+  rewriter.on("body", {
+    element(el) {
+      inBody = true;
+      el.onEndTag(() => {
+        inBody = false;
+      });
+    },
+  });
+
+  rewriter.on("h1, h2, h3, h4, p, blockquote, li", {
+    element(el) {
+      const tag = el.tagName.toLowerCase();
+      activeTag = tag;
+      buf = "";
+      el.onEndTag(() => {
+        const text = buf.replace(/\s+/g, " ").trim();
+        if (text) {
+          if (!title && headingTags.has(tag)) title = decodeEntities(text);
+          paragraphs.push(decodeEntities(text));
+        }
+        activeTag = null;
+        buf = "";
+      });
+    },
+    text(chunk) {
+      if (activeTag) buf += chunk.text;
+    },
+  });
+
+  rewriter.on("body", {
+    text(chunk) {
+      if (inBody) bodyBuf += chunk.text;
+    },
+  });
+
+  await rewriter.transform(new Response(xhtml)).arrayBuffer();
 
   if (!paragraphs.length) {
-    const body = root.querySelector("body");
-    const text = (body?.text ?? root.text).replace(/\s+/g, " ").trim();
-    if (text) paragraphs.push(text);
+    const text = bodyBuf.replace(/\s+/g, " ").trim();
+    if (text) paragraphs.push(decodeEntities(text));
   }
 
-  return { title: title ? decodeEntities(title) : null, content: paragraphs.map(decodeEntities).join("\n\n") };
+  return { title, content: paragraphs.join("\n\n") };
 }
 
 function decodeEntities(value: string): string {
