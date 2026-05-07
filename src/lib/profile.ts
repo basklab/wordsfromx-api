@@ -7,7 +7,7 @@ export async function getProfile(userId: string): Promise<Profile> {
   const rows = await db
     .insert(profiles)
     .values({ id: userId })
-    .onConflictDoUpdate({ target: profiles.id, set: { id: userId } })
+    .onConflictDoUpdate({ target: profiles.id, set: { updatedAt: new Date() } })
     .returning({ id: profiles.id, sourceLang: profiles.sourceLang, targetLang: profiles.targetLang });
   return rows[0]!;
 }

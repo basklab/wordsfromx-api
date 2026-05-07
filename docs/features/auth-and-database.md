@@ -15,8 +15,8 @@
 
 - API
   - `src/env.ts`: reads `DATABASE_URL` (falls back to `POSTGRES_URL`,
-    `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING`) and
-    `NEON_AUTH_BASE_URL`.
+    `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING`), `NEON_AUTH_BASE_URL`,
+    and the optional `NEON_AUTH_AUDIENCE`.
   - `src/db/index.ts`: `drizzle({ client: neon(DATABASE_URL), schema })`.
   - `src/db/schema.ts`: drizzle-kit-managed tables (`books`, `book_chapters`,
     `translations`, `profiles`, `vocab`) plus `neon_auth."user"` declared as
@@ -27,7 +27,9 @@
     neon_auth."user"` statement (Neon Auth owns that table). Keep this in
     mind if you ever regenerate from scratch.
   - `src/lib/auth.ts`: `jose.createRemoteJWKSet(${NEON_AUTH_BASE_URL}/jwks)`
-    + `jwtVerify`. User details pulled from `neon_auth."user"` via drizzle.
+    + `jwtVerify` with `issuer` and (optional) `audience` pinned via
+    `NEON_AUTH_AUDIENCE`. User identity (`sub`, `email`, `name`, `image`) is
+    read from verified JWT claims — no per-request DB lookup.
   - `src/routes/auth.ts`: only `/auth/me` (sign-in/sign-up live in the web
     client).
 - Web
@@ -48,8 +50,9 @@
   - `bun run db:migrate` applies pending migrations against `DATABASE_URL`.
   - `bun run db:studio` opens drizzle's web UI.
 - Vercel
-  - `apps/api/vercel.json` sets `buildCommand: "bun run db:migrate"`. Vercel
-    runs it once per deploy with the env vars for that environment, so
+  - `vercel.json` sets `buildCommand: "bun run db:migrate"` and pins
+    `regions: ["fra1"]` (close to Neon `eu-central-1`). Vercel runs the
+    migrate step once per deploy with the env vars for that environment, so
     production deploys migrate the prod branch and preview deploys migrate
     their own ephemeral branch (per Neon's Vercel integration).
   - `DATABASE_URL_UNPOOLED` is preferred for migrations (drizzle.config.ts
@@ -66,7 +69,8 @@
   sign-ups don't pollute the prod user table.
 - Required env vars per environment
   - API: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NEON_AUTH_BASE_URL`,
-    `WEB_ORIGIN`, `MYMEMORY_EMAIL` (optional).
+    `NEON_AUTH_AUDIENCE` (optional, recommended), `WEB_ORIGIN`,
+    `MYMEMORY_EMAIL` (optional).
   - Web: `VITE_NEON_AUTH_URL`, `VITE_API_URL` (if not same-origin `/api`).
 
 ## Known Gaps

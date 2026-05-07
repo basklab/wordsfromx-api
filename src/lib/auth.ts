@@ -1,8 +1,5 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { eq } from "drizzle-orm";
 import { env } from "../env";
-import { db } from "../db";
-import { neonAuthUser } from "../db/schema";
 
 export type AuthUser = {
   id: string;
@@ -30,26 +27,20 @@ export async function userFromAuthHeader(authorization: string | null | undefine
   try {
     const { payload } = await jwtVerify(token, jwks(), {
       issuer: env.neonAuthBaseUrl,
+      audience: env.neonAuthAudience,
     });
     if (!payload.sub) return null;
-    return userById(payload.sub);
+
+    const email = typeof payload.email === "string" ? payload.email : null;
+    if (!email) return null;
+
+    return {
+      id: payload.sub,
+      email,
+      name: typeof payload.name === "string" && payload.name ? payload.name : email,
+      image: typeof payload.image === "string" ? payload.image : null,
+    };
   } catch {
     return null;
   }
-}
-
-async function userById(id: string): Promise<AuthUser | null> {
-  const rows = await db
-    .select({ id: neonAuthUser.id, email: neonAuthUser.email, name: neonAuthUser.name, image: neonAuthUser.image })
-    .from(neonAuthUser)
-    .where(eq(neonAuthUser.id, id))
-    .limit(1);
-  const row = rows[0];
-  if (!row?.email) return null;
-  return {
-    id: row.id,
-    email: row.email,
-    name: row.name ?? row.email,
-    image: row.image,
-  };
 }

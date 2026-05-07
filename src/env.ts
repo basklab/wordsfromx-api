@@ -18,11 +18,13 @@ const databaseUrl = first(
 );
 
 const neonAuthBaseUrl = first(Bun.env.NEON_AUTH_BASE_URL, Bun.env.VITE_NEON_AUTH_URL)?.replace(/\/$/, "");
+const neonAuthAudience = first(Bun.env.NEON_AUTH_AUDIENCE);
 
 export const env = {
   port: Number(first(Bun.env.PORT, Bun.env.API_PORT) ?? 3001),
   webOrigins,
   databaseUrl,
   neonAuthBaseUrl,
+  neonAuthAudience,
   myMemoryEmail: Bun.env.MYMEMORY_EMAIL ?? "",
 };
