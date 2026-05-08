@@ -10,6 +10,12 @@ import { vocabRoutes } from "./routes/vocab";
 
 export const app = new Elysia()
   .use(cors({ origin: env.webOrigins, credentials: true }))
+  .onBeforeHandle(({ request, status }) => {
+    const origin = request.headers.get("origin");
+    if (origin && !env.webOrigins.includes(origin)) {
+      return status(403, { error: "forbidden" });
+    }
+  })
   .get("/health", () => ({ ok: true }))
   .use(authRoutes)
   .use(bookRoutes)

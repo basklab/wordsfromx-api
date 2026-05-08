@@ -8,6 +8,8 @@ export type AuthUser = {
   image: string | null;
 };
 
+export const AUTH_COOKIE_NAME = "wordsfromx_auth";
+
 let jwksCache: ReturnType<typeof createRemoteJWKSet> | null = null;
 
 function jwks() {
@@ -20,8 +22,11 @@ function jwks() {
   return jwksCache;
 }
 
-export async function userFromAuthHeader(authorization: string | null | undefined): Promise<AuthUser | null> {
-  const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+export async function userFromCookieHeader(cookie: string | null | undefined): Promise<AuthUser | null> {
+  return userFromToken(readCookie(cookie, AUTH_COOKIE_NAME));
+}
+
+export async function userFromToken(token: string | null | undefined): Promise<AuthUser | null> {
   if (!token) return null;
 
   try {
@@ -43,4 +48,45 @@ export async function userFromAuthHeader(authorization: string | null | undefine
   } catch {
     return null;
   }
+}
+
+export function authCookie(token: string, requestUrl: string): string {
+  const secure = requestUrl.startsWith("https://");
+  const sameSite = secure ? "None" : "Lax";
+  return [
+    `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "HttpOnly",
+    `SameSite=${sameSite}`,
+    "Max-Age=900",
+    ...(secure ? ["Secure"] : []),
+  ].join("; ");
+}
+
+export function clearAuthCookie(requestUrl: string): string {
+  const secure = requestUrl.startsWith("https://");
+  const sameSite = secure ? "None" : "Lax";
+  return [
+    `${AUTH_COOKIE_NAME}=`,
+    "Path=/",
+    "HttpOnly",
+    `SameSite=${sameSite}`,
+    "Max-Age=0",
+    ...(secure ? ["Secure"] : []),
+  ].join("; ");
+}
+
+function readCookie(cookieHeader: string | null | undefined, name: string): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(";")) {
+    const [rawName, ...rawValue] = part.trim().split("=");
+    if (rawName !== name) continue;
+    const value = rawValue.join("=");
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+  return null;
 }

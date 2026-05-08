@@ -8,8 +8,9 @@
   generated via `drizzle-kit generate` and applied via `drizzle-kit migrate`.
 - Auth: Neon Auth (Better Auth-powered). Frontend talks to it via
   `better-auth/react` with the `jwtClient` plugin; UI is rendered via
-  `@daveyplate/better-auth-ui`. The Elysia API verifies bearer JWTs against
-  the Neon Auth JWKS endpoint.
+  `@daveyplate/better-auth-ui` through the API's `/auth/*` proxy. The web app
+  exchanges the Neon JWT for an HTTP-only API cookie; protected Elysia routes
+  verify that cookie's JWT against the Neon Auth JWKS endpoint.
 
 ## Implementation
 
@@ -29,12 +30,17 @@
   - `src/lib/auth.ts`: `jose.createRemoteJWKSet(${NEON_AUTH_BASE_URL}/jwks)`
     + `jwtVerify` with `issuer` and (optional) `audience` pinned via
     `NEON_AUTH_AUDIENCE`. User identity (`sub`, `email`, `name`, `image`) is
-    read from verified JWT claims — no per-request DB lookup.
-  - `src/routes/auth.ts`: only `/auth/me` (sign-in/sign-up live in the web
-    client).
+    read from verified JWT claims; there is no per-request DB lookup.
+    `wordsfromx_auth` is read from the `Cookie` header for API requests.
+  - `src/routes/auth.ts`: `/auth/cookie` exchanges a Neon JWT for the
+    HTTP-only API cookie, clears it on DELETE, and `/auth/me` returns the
+    cookie-authenticated user. Other `/auth/*` requests are proxied to Neon
+    Auth so Better Auth client/UI endpoints are available from the same API
+    origin.
 - Web
   - `src/lib/neon-auth.ts`: `better-auth/react` client with `jwtClient()`.
-    Module-level token cache calling `${VITE_NEON_AUTH_URL}/token`.
+    Module-level token cache calls `${VITE_API_URL}/auth/token`, then posts
+    the token to `/auth/cookie` so subsequent API requests use cookies.
   - `src/lib/auth.tsx`: bridges `authClient.useSession()` to the existing
     `useAuth()` hook.
   - `src/pages/Login.tsx`: lazy-loaded; renders `<AuthView />` from
@@ -71,12 +77,12 @@
   - API: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NEON_AUTH_BASE_URL`,
     `NEON_AUTH_AUDIENCE` (optional, recommended), `WEB_ORIGIN`,
     `MYMEMORY_EMAIL` (optional).
-  - Web: `VITE_NEON_AUTH_URL`, `VITE_API_URL` (if not same-origin `/api`).
+  - Web: `VITE_API_URL` (if not same-origin `/api`).
 
 ## Known Gaps
 
-- The token cache in `neon-auth.ts` polls `/token` every 10 minutes; on
-  401s the API client doesn't yet retry with a refreshed token.
+- The token cache in `neon-auth.ts` schedules refreshes from the token `exp`;
+  on 401s the API client doesn't yet retry with a refreshed cookie.
 - `loginAsTestUser` was removed; for E2E tests, sign in a real Neon Auth
   user with credentials kept in CI secrets.
 

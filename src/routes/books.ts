@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { parseEpub } from "../lib/epub";
 import { parseTextBook } from "../lib/text";
 import { deleteBook, getBook, listBooks, saveBook, summaryOf, updateProgress } from "../lib/store";
-import { userFromAuthHeader } from "../lib/auth";
+import { userFromCookieHeader } from "../lib/auth";
 import { annotatePage } from "../lib/annotate";
 import { getProfile } from "../lib/profile";
 
@@ -10,12 +10,12 @@ const MAX_BOOK_BYTES = 30 * 1024 * 1024;
 
 export const bookRoutes = new Elysia({ prefix: "/books" })
   .get("/", async ({ headers, status }) => {
-    const user = await userFromAuthHeader(headers.authorization);
+    const user = await userFromCookieHeader(headers.cookie);
     if (!user) return status(401, { error: "unauthorized" });
     return listBooks(user.id);
   })
   .get("/:id", async ({ headers, params, status }) => {
-    const user = await userFromAuthHeader(headers.authorization);
+    const user = await userFromCookieHeader(headers.cookie);
     if (!user) return status(401, { error: "unauthorized" });
     const book = await getBook(user.id, params.id);
     if (!book) return status(404, { error: "book not found" });
@@ -24,7 +24,7 @@ export const bookRoutes = new Elysia({ prefix: "/books" })
   .post(
     "/upload",
     async ({ body, headers, status }) => {
-      const user = await userFromAuthHeader(headers.authorization);
+      const user = await userFromCookieHeader(headers.cookie);
       if (!user) return status(401, { error: "unauthorized" });
       const file = body.file;
       const bytes = new Uint8Array(await file.arrayBuffer());
@@ -49,7 +49,7 @@ export const bookRoutes = new Elysia({ prefix: "/books" })
   .patch(
     "/:id/progress",
     async ({ params, body, headers, status }) => {
-      const user = await userFromAuthHeader(headers.authorization);
+      const user = await userFromCookieHeader(headers.cookie);
       if (!user) return status(401, { error: "unauthorized" });
       const book = await getBook(user.id, params.id);
       if (!book) return status(404, { error: "book not found" });
@@ -68,7 +68,7 @@ export const bookRoutes = new Elysia({ prefix: "/books" })
     },
   )
   .get("/:id/pages/:n/annotation", async ({ headers, params, status }) => {
-    const user = await userFromAuthHeader(headers.authorization);
+    const user = await userFromCookieHeader(headers.cookie);
     if (!user) return status(401, { error: "unauthorized" });
     const book = await getBook(user.id, params.id);
     if (!book) return status(404, { error: "book not found" });
@@ -80,7 +80,7 @@ export const bookRoutes = new Elysia({ prefix: "/books" })
     return { tokens, chapterTitle: page.chapterTitle ?? null };
   })
   .delete("/:id", async ({ headers, params, status }) => {
-    const user = await userFromAuthHeader(headers.authorization);
+    const user = await userFromCookieHeader(headers.cookie);
     if (!user) return status(401, { error: "unauthorized" });
     const deleted = await deleteBook(user.id, params.id);
     return deleted ? { ok: true } : status(404, { error: "book not found" });

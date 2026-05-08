@@ -8,14 +8,16 @@ and Ripple Elysia worktrees.
 ## Implementation
 
 - Runtime entrypoint: `src/index.ts`
-- Auth routes: `src/routes/auth.ts`
+- Auth routes: `src/routes/auth.ts` (local API cookie endpoints plus a Better
+  Auth proxy fallback)
 - Book routes: `src/routes/books.ts`
 - EPUB parse route: `src/routes/epub.ts`
 - Translation route: `src/routes/translate.ts`
 - Drizzle ORM client: `src/db/index.ts` (Neon HTTP)
 - Drizzle schema: `src/db/schema.ts` (FKs to `neon_auth."user"`)
 - SQL migrations: `drizzle/*.sql`, applied at deploy via `bun run db:migrate`
-- Auth verification: `src/lib/auth.ts` (Neon Auth JWKS via `jose`)
+- Auth verification: `src/lib/auth.ts` (`wordsfromx_auth` cookie verified
+  against Neon Auth JWKS via `jose`)
 - EPUB, text, paging, and book domain helpers: `src/lib/*`
 
 The server runs directly from the repo root with Bun:
