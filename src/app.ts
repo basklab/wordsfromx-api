@@ -25,3 +25,5 @@ export const app = new Elysia()
   .use(vocabRoutes);
 
 export type App = typeof app;
+
+export default { fetch: app.fetch };
