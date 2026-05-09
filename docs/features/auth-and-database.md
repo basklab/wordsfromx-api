@@ -4,9 +4,9 @@
 
 Postgres via `bun:sql` + `drizzle-orm/bun-sql`, no third-party driver.
 Runtime uses the **pooled** connection URL (Neon `-pooler` / pgBouncer);
-migrations use the unpooled URL. The `SQL` client is registered with
-Vercel Fluid Compute via `attachDatabasePool` so the pool survives
-instance reuse and drains on shutdown (no-op locally).
+migrations use the unpooled URL. The `SQL` client is a module-level
+singleton — Vercel Fluid Compute reuses the same instance across
+concurrent invocations, so the underlying TCP pool stays warm.
 
 Auth is a default Better Auth setup, self-hosted inside the Elysia API
 at `/auth/*`.
@@ -16,8 +16,7 @@ at `/auth/*`.
 - `src/env.ts` — reads `DATABASE_URL` (falls back to `POSTGRES_URL`,
   `POSTGRES_PRISMA_URL`), `BETTER_AUTH_SECRET`, optional `BETTER_AUTH_URL`,
   `WEB_ORIGIN`, `MYMEMORY_EMAIL`.
-- `src/db/index.ts` — `drizzle(new SQL(databaseUrl))` +
-  `attachDatabasePool(client)`.
+- `src/db/index.ts` — `drizzle(new SQL(databaseUrl))`.
 - `src/db/schema.ts` — Better Auth core tables + app tables (`books`,
   `book_chapters`, `translations`, `profiles`, `vocab`). User-bound FKs
   are `text` to match Better Auth ids.
