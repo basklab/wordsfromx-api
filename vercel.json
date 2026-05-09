@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "bunVersion": "1.x",
-  "buildCommand": "bun run db:migrate",
+  "buildCommand": "echo \"POSTGRES_HOST=$POSTGRES_HOST\" && echo \"DATABASE_URL=$DATABASE_URL\" && npx drizzle-kit migrate",
   "regions": ["fra1"]
 }
