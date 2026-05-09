@@ -2,9 +2,15 @@
 
 ## Status
 
-- Database: Postgres (any provider — currently Neon, but the API uses the
-  vanilla `postgres` driver, not `@neondatabase/serverless`). Accessed via
-  Drizzle ORM (`drizzle-orm/postgres-js`).
+- Database: Postgres. The driver is selected at runtime based on
+  `DATABASE_URL`:
+  - Neon (`*.neon.tech`) → `@neondatabase/serverless` `Pool` +
+    `drizzle-orm/neon-serverless`. `neonConfig.poolQueryViaFetch = true`
+    so non-transactional queries go over HTTP; transactions fall back to
+    WebSocket automatically.
+  - Anything else (local Postgres, other providers) → Bun's native
+    `bun:sql` client + `drizzle-orm/bun-sql`. No third-party Postgres
+    driver dependency.
 - Schema lives in `src/db/schema.ts`; SQL migrations in `drizzle/*.sql` are
   generated via `drizzle-kit generate` and applied via `drizzle-kit migrate`.
 - Auth: **Better Auth, self-hosted inside the Elysia API.** No external auth
@@ -20,7 +26,8 @@
   - `src/env.ts`: reads `DATABASE_URL` (falls back to `POSTGRES_URL`,
     `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING`), `BETTER_AUTH_SECRET`
     (required), and the optional `BETTER_AUTH_URL`.
-  - `src/db/index.ts`: `drizzle(postgres(DATABASE_URL), { schema })`.
+  - `src/db/index.ts`: branches on `DATABASE_URL`. Neon uses the
+    serverless WebSocket pool; otherwise `bun:sql`.
   - `src/db/schema.ts`: drizzle-kit-managed tables. Better Auth core
     (`user`, `session`, `account`, `verification`) plus app tables
     (`books`, `book_chapters`, `translations`, `profiles`, `vocab`). User
@@ -83,7 +90,16 @@
 - **Neon Auth (the previous approach)**: managed, but ties auth to a single
   vendor and forced a JWT cookie-exchange dance to authenticate API calls.
   Self-hosted Better Auth removes the vendor lock-in and the indirection.
-- **`drizzle-orm/neon-http`**: works for Neon but not portable. The
-  `postgres` driver works against any Postgres including Neon's pooled URL.
+- **`drizzle-orm/neon-http`**: HTTP-only, no transaction support, so it
+  can't back Better Auth. `neon-serverless` (WebSocket) handles both
+  transactional and non-transactional queries and is what we use against
+  Neon.
+- **`postgres-js` for the local branch**: works, but pulls in a
+  third-party driver. Bun's native `bun:sql` is built in and removes the
+  dependency for the local/preview-without-Neon path.
+- **A single driver everywhere**: `bun:sql` can't reach Neon (which
+  requires the serverless WebSocket proxy), and `@neondatabase/serverless`
+  can't reach a local Postgres without that proxy. The URL switch keeps
+  each environment on the right driver.
 - **JWT sessions instead of cookie sessions**: cookie sessions are the
   Better Auth default and require zero client-side token handling.

@@ -14,18 +14,19 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "vercel-build": "drizzle-kit migrate"
+    "build": "bun run db:migrate"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.6.9",
     "@elysiajs/cors": "1.4.2",
+    "@neondatabase/serverless": "^1.1.0",
     "better-auth": "1.6.9",
     "drizzle-orm": "^0.45.2",
     "elysia": "^1.4.28",
-    "fflate": "^0.8.2",
-    "postgres": "^3.4.5"
+    "fflate": "^0.8.2"
   },
   "devDependencies": {
+    "@types/bun": "^1.3.13",
     "bun-types": "^1.3.13",
     "drizzle-kit": "^0.31.10",
     "typescript": "^6.0.3"

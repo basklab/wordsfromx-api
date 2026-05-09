@@ -9,14 +9,14 @@ if (!env.betterAuthSecret) {
 }
 
 export const auth = betterAuth({
-  baseURL: env.betterAuthBaseUrl ?? `http://127.0.0.1:${env.port}/auth`,
+  baseURL: env.betterAuthBaseUrl ?? `http://127.0.0.1:${env.port}`,
+  basePath: "/auth",
   secret: env.betterAuthSecret,
   trustedOrigins: env.webOrigins,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema,
   }),
-  experimental: { joins: true },
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,

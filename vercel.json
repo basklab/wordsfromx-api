@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "bunVersion": "1.x",
-  "installCommand": "npm install",
+  "buildCommand": "bun run db:migrate",
   "regions": ["fra1"]
 }
