@@ -17,11 +17,13 @@ const webOrigins = (
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+// Prefer the pooled connection string for runtime queries. On Vercel + Neon,
+// DATABASE_URL / POSTGRES_URL point at the pgBouncer pooler; the non-pooled
+// variants are reserved for migrations (see drizzle.config.ts).
 const databaseUrl = first(
   runtimeEnv.DATABASE_URL,
   runtimeEnv.POSTGRES_URL,
   runtimeEnv.POSTGRES_PRISMA_URL,
-  runtimeEnv.POSTGRES_URL_NON_POOLING,
 );
 
 const betterAuthSecret = first(runtimeEnv.BETTER_AUTH_SECRET);

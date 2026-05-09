@@ -1,7 +1,7 @@
 import { SQL } from "bun";
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import { drizzle as drizzleBun, type BunSQLDatabase } from "drizzle-orm/bun-sql";
-import { drizzle as drizzleNeon } from "drizzle-orm/neon-serverless";
+import { attachDatabasePool } from "@vercel/functions";
+import type { DbPool } from "@vercel/functions/db-connections";
+import { drizzle, type BunSQLDatabase } from "drizzle-orm/bun-sql";
 import { env } from "../env";
 import * as schema from "./schema";
 
@@ -9,24 +9,15 @@ if (!env.databaseUrl) {
   throw new Error("Database connection string is required. Set DATABASE_URL.");
 }
 
-const url = env.databaseUrl;
-const isNeon = /\.neon\.tech\b/.test(url);
+const client = new SQL(env.databaseUrl);
 
-// Route non-transactional queries over HTTP for faster cold starts.
-// Transactions (used by Better Auth) automatically fall back to WebSocket.
-neonConfig.poolQueryViaFetch = true;
+// Register the pool with Vercel Fluid Compute so connections are reused
+// across concurrent invocations on the same instance and drained on
+// shutdown. attachDatabasePool duck-types known pool shapes; bun:sql isn't
+// one of them, so we cast.
+attachDatabasePool(client as unknown as DbPool);
 
 type Schema = typeof schema;
 
-function buildDb(): BunSQLDatabase<Schema> {
-  if (!isNeon) {
-    return drizzleBun(new SQL(url), { schema });
-  }
-  const pool = new Pool({ connectionString: url });
-  // Both drivers expose the same drizzle query-builder surface; the cast
-  // keeps a single static type for downstream callers.
-  return drizzleNeon(pool, { schema }) as unknown as BunSQLDatabase<Schema>;
-}
-
-export const db = buildDb();
+export const db: BunSQLDatabase<Schema> = drizzle(client, { schema });
 export { schema };

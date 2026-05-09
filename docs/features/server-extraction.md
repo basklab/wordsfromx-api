@@ -1,51 +1,38 @@
 # Server Extraction
 
-## Status
+## What
 
-`wordsfromx-api--elysia` is the standalone Elysia API extracted from the Solid
-and Ripple Elysia worktrees.
+`wordsfromx-api--elysia` is the standalone Elysia API extracted from the
+Solid and Ripple Elysia worktrees. It runs directly with Bun
+(`bun install && bun dev`) and is deployed as Vercel Functions.
 
-## Implementation
+## Where
 
-- Runtime entrypoint: `src/index.ts`
-- Auth routes: `src/routes/auth.ts` (local API cookie endpoints plus a Better
-  Auth proxy fallback)
-- Book routes: `src/routes/books.ts`
-- EPUB parse route: `src/routes/epub.ts`
-- Translation route: `src/routes/translate.ts`
-- Drizzle ORM client: `src/db/index.ts` (Neon HTTP)
-- Drizzle schema: `src/db/schema.ts` (FKs to `neon_auth."user"`)
-- SQL migrations: `drizzle/*.sql`, applied at deploy via `bun run db:migrate`
-- Auth verification: `src/lib/auth.ts` (`wordsfromx_auth` cookie verified
-  against Neon Auth JWKS via `jose`)
-- EPUB, text, paging, and book domain helpers: `src/lib/*`
+- `src/index.ts` — runtime entrypoint.
+- `src/routes/auth.ts` — Better Auth handler mounted at `/auth/*`.
+- `src/routes/books.ts`, `src/routes/epub.ts`, `src/routes/translate.ts`,
+  `src/routes/profile.ts`, `src/routes/vocab.ts` — feature routes.
+- `src/db/index.ts`, `src/db/schema.ts` — Drizzle client and schema
+  (see [auth-and-database.md](./auth-and-database.md)).
+- `src/lib/*` — EPUB, text, paging, translation, and vocab helpers.
+- `drizzle/*.sql` — migrations applied at deploy via `bun run db:migrate`.
 
-The server runs directly from the repo root with Bun:
+## Source worktrees
 
-```sh
-bun install
-bun dev
-```
+- `wordsfromx--ripple-elysia` — auth, books, Postgres storage, text
+  parsing, paging, EPUB parser.
+- `wordsfromx--solid-elysia` — standalone EPUB parse route and
+  MyMemory-backed translation route.
 
-## Source Worktrees
+## Gaps
 
-- `wordsfromx--ripple-elysia`: auth, books, direct Postgres storage, text parsing,
-  paging, and the improved EPUB parser.
-- `wordsfromx--solid-elysia`: standalone EPUB parse route and MyMemory-backed
-  translation route behavior.
-
-## Known Gaps
-
-- The Solid and Ripple clients point at this API repo through local package
-  links and `VITE_API_URL`.
+- Solid and Ripple clients depend on this API via local package links
+  and `VITE_API_URL`.
 - OpenAPI generation is not wired yet.
-- Schema is bootstrapped at startup via `ensureSchema()`. For multi-branch /
-  preview workflows this is fine (idempotent on each branch), but a real
-  migration tool (drizzle-kit / atlas) is not yet wired in.
 
-## Alternatives Considered
+## Alternatives
 
-- Git submodules and raw symlinks were avoided because they make the split repo
-  workflow brittle across editors, package managers, and CI.
-- Sharing server internals directly with clients was avoided because OpenAPI is
-  expected to become the contract boundary later.
+- Git submodules and raw symlinks — brittle across editors, package
+  managers, and CI.
+- Sharing server internals directly with clients — avoided because
+  OpenAPI is expected to become the contract boundary.
