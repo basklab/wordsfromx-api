@@ -1,10 +1,10 @@
 import { Elysia, t } from "elysia";
-import { userFromCookieHeader } from "../lib/auth";
+import { userFromRequest } from "../lib/auth";
 import { listVocab, setVocabStatus, trackExposure } from "../lib/vocab";
 
 export const vocabRoutes = new Elysia({ prefix: "/vocab" })
-  .get("/", async ({ query, headers, status }) => {
-    const user = await userFromCookieHeader(headers.cookie);
+  .get("/", async ({ query, request, status }) => {
+    const user = await userFromRequest(request);
     if (!user) return status(401, { error: "unauthorized" });
     return listVocab(user.id, query.sourceLang);
   }, {
@@ -14,8 +14,8 @@ export const vocabRoutes = new Elysia({ prefix: "/vocab" })
   })
   .post(
     "/exposure",
-    async ({ body, headers, status }) => {
-      const user = await userFromCookieHeader(headers.cookie);
+    async ({ body, request, status }) => {
+      const user = await userFromRequest(request);
       if (!user) return status(401, { error: "unauthorized" });
       return trackExposure(user.id, body.sourceLang, body.lemma);
     },
@@ -28,8 +28,8 @@ export const vocabRoutes = new Elysia({ prefix: "/vocab" })
   )
   .patch(
     "/:lemma/status",
-    async ({ params, body, headers, status }) => {
-      const user = await userFromCookieHeader(headers.cookie);
+    async ({ params, body, request, status }) => {
+      const user = await userFromRequest(request);
       if (!user) return status(401, { error: "unauthorized" });
       return setVocabStatus(user.id, body.sourceLang, params.lemma, body.status);
     },

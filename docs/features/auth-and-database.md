@@ -1,52 +1,44 @@
-# Auth & Database (Neon + Neon Auth + Drizzle)
+# Auth & Database (Better Auth + Postgres + Drizzle)
 
 ## Status
 
-- Database: Neon Postgres, accessed via Drizzle ORM (`drizzle-orm/neon-http`
-  + `@neondatabase/serverless`).
+- Database: Postgres (any provider — currently Neon, but the API uses the
+  vanilla `postgres` driver, not `@neondatabase/serverless`). Accessed via
+  Drizzle ORM (`drizzle-orm/postgres-js`).
 - Schema lives in `src/db/schema.ts`; SQL migrations in `drizzle/*.sql` are
   generated via `drizzle-kit generate` and applied via `drizzle-kit migrate`.
-- Auth: Neon Auth (Better Auth-powered). Frontend talks to it via
-  `better-auth/react` with the `jwtClient` plugin; UI is rendered via
-  `@daveyplate/better-auth-ui` through the API's `/auth/*` proxy. The web app
-  exchanges the Neon JWT for an HTTP-only API cookie; protected Elysia routes
-  verify that cookie's JWT against the Neon Auth JWKS endpoint.
+- Auth: **Better Auth, self-hosted inside the Elysia API.** No external auth
+  service. Better Auth owns the `user` / `session` / `account` / `verification`
+  tables in the same Postgres database and is mounted at `/auth/*`. The web
+  client talks to it via `better-auth/react` and the
+  `@daveyplate/better-auth-ui` `<AuthView />`. Sessions are HTTP-only cookies
+  on the API origin.
 
 ## Implementation
 
 - API
   - `src/env.ts`: reads `DATABASE_URL` (falls back to `POSTGRES_URL`,
-    `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING`), `NEON_AUTH_BASE_URL`,
-    and the optional `NEON_AUTH_AUDIENCE`.
-  - `src/db/index.ts`: `drizzle({ client: neon(DATABASE_URL), schema })`.
-  - `src/db/schema.ts`: drizzle-kit-managed tables (`books`, `book_chapters`,
-    `translations`, `profiles`, `vocab`) plus `neon_auth."user"` declared as
-    a read-only reference for FKs and joins.
-  - `drizzle.config.ts`: drizzle-kit config; reads `DATABASE_URL_UNPOOLED`
-    when present, falling back to pooled.
-  - `drizzle/0000_init.sql`: hand-edited to remove the `CREATE TABLE
-    neon_auth."user"` statement (Neon Auth owns that table). Keep this in
-    mind if you ever regenerate from scratch.
-  - `src/lib/auth.ts`: `jose.createRemoteJWKSet(${NEON_AUTH_BASE_URL}/jwks)`
-    + `jwtVerify` with `issuer` and (optional) `audience` pinned via
-    `NEON_AUTH_AUDIENCE`. User identity (`sub`, `email`, `name`, `image`) is
-    read from verified JWT claims; there is no per-request DB lookup.
-    `wordsfromx_auth` is read from the `Cookie` header for API requests.
-  - `src/routes/auth.ts`: `/auth/cookie` exchanges a Neon JWT for the
-    HTTP-only API cookie, clears it on DELETE, and `/auth/me` returns the
-    cookie-authenticated user. Other `/auth/*` requests are proxied to Neon
-    Auth so Better Auth client/UI endpoints are available from the same API
-    origin.
+    `POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING`), `BETTER_AUTH_SECRET`
+    (required), and the optional `BETTER_AUTH_URL`.
+  - `src/db/index.ts`: `drizzle(postgres(DATABASE_URL), { schema })`.
+  - `src/db/schema.ts`: drizzle-kit-managed tables. Better Auth core
+    (`user`, `session`, `account`, `verification`) plus app tables
+    (`books`, `book_chapters`, `translations`, `profiles`, `vocab`). User
+    ids are `text` (Better Auth default), so user-bound FKs are `text` too.
+  - `src/lib/auth.ts`: `betterAuth({ database: drizzleAdapter(db, { provider: "pg" }), emailAndPassword: { enabled: true }, basePath: "/auth", trustedOrigins })`.
+    Exports `userFromRequest(request)` which calls
+    `auth.api.getSession({ headers })` and normalizes the user shape.
+  - `src/routes/auth.ts`: mounts `auth.handler` on `/auth/*`, plus a
+    convenience `/auth/me` endpoint. Better Auth handles sign-up, sign-in,
+    sign-out, get-session, password reset, etc.
+  - All other routes use `userFromRequest(request)` to gate access.
 - Web
-  - `src/lib/neon-auth.ts`: `better-auth/react` client with `jwtClient()`.
-    Module-level token cache calls `${VITE_API_URL}/auth/token`, then posts
-    the token to `/auth/cookie` so subsequent API requests use cookies.
-  - `src/lib/auth.tsx`: bridges `authClient.useSession()` to the existing
-    `useAuth()` hook.
-  - `src/pages/Login.tsx`: lazy-loaded; renders `<AuthView />` from
-    `@daveyplate/better-auth-ui`.
-  - `src/App.tsx`: lazy-loads route components; auth UI provider lives only
-    in `Login.tsx`.
+  - `src/lib/auth-client.ts`: `createAuthClient({ baseURL: ${API}/auth, basePath: "/auth" })`
+    with `credentials: "include"`. No JWT plugin, no token cache.
+  - `src/lib/api.ts`: Eden treaty client with `credentials: "include"`. The
+    Better Auth session cookie is sent automatically.
+  - `src/lib/auth.tsx`: bridges `authClient.useSession()` to `useAuth()`.
+  - `src/pages/Login.tsx`: lazy-loaded; renders `<AuthView />`.
 
 ## Migrations & Deploy
 
@@ -54,44 +46,44 @@
   - `bun run db:generate` after editing `src/db/schema.ts` produces a new
     `drizzle/NNNN_*.sql` file. Review and commit it.
   - `bun run db:migrate` applies pending migrations against `DATABASE_URL`.
-  - `bun run db:studio` opens drizzle's web UI.
+  - The cut-over migration is `0001_better_auth.sql`. It drops the
+    user-bound app tables (data tied to old `neon_auth.user` uuid ids
+    cannot survive the switch to better-auth `text` ids) and recreates them.
+    The translations cache is preserved.
 - Vercel
   - `vercel.json` sets `buildCommand: "bun run db:migrate"` and pins
-    `regions: ["fra1"]` (close to Neon `eu-central-1`). Vercel runs the
-    migrate step once per deploy with the env vars for that environment, so
-    production deploys migrate the prod branch and preview deploys migrate
-    their own ephemeral branch (per Neon's Vercel integration).
-  - `DATABASE_URL_UNPOOLED` is preferred for migrations (drizzle.config.ts
-    reads it first); the Neon Vercel integration sets both.
+    `regions: ["fra1"]`. Vercel runs the migrate step once per deploy.
+  - `DATABASE_URL_UNPOOLED` is preferred for migrations
+    (drizzle.config.ts reads it first).
 
-## Preview / Prod Setup
+## Required env vars
 
-- **Neon Vercel integration** for branch-per-PR DBs: every Vercel preview
-  gets its own ephemeral Neon branch forked from `main`, auto-deleted with
-  the PR. Production reads/writes `main`. The integration sets
-  `DATABASE_URL` and `DATABASE_URL_UNPOOLED` per environment.
-- **Two Neon Auth projects**: one for production, one shared by Preview +
-  local development. Set the keys per Vercel environment so preview
-  sign-ups don't pollute the prod user table.
-- Required env vars per environment
-  - API: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NEON_AUTH_BASE_URL`,
-    `NEON_AUTH_AUDIENCE` (optional, recommended), `WEB_ORIGIN`,
-    `MYMEMORY_EMAIL` (optional).
-  - Web: `VITE_API_URL` (if not same-origin `/api`).
+- API
+  - `DATABASE_URL` (and `DATABASE_URL_UNPOOLED` for migrations)
+  - `BETTER_AUTH_SECRET` — random 32+ byte secret. Generate with
+    `openssl rand -base64 32`.
+  - `BETTER_AUTH_URL` — public URL of the API (used for OAuth callbacks
+    etc.). Optional for email/password-only setups.
+  - `WEB_ORIGIN` — comma-separated list of allowed web origins.
+  - `MYMEMORY_EMAIL` (optional).
+- Web
+  - `VITE_API_URL` (if not same-origin `/api`).
 
 ## Known Gaps
 
-- The token cache in `neon-auth.ts` schedules refreshes from the token `exp`;
-  on 401s the API client doesn't yet retry with a refreshed cookie.
-- `loginAsTestUser` was removed; for E2E tests, sign in a real Neon Auth
-  user with credentials kept in CI secrets.
+- Email verification is not enforced (`emailAndPassword.enabled: true` only).
+  Add an email provider + `requireEmailVerification: true` when ready.
+- No password reset email flow wired up yet — Better Auth supports it but
+  it needs an email-sending integration.
+- Social providers (GitHub, Google, etc.) are not configured. Add via
+  `socialProviders` in `src/lib/auth.ts`.
 
 ## Alternatives Considered
 
-- **`drizzle-orm/postgres-js`** as the driver: works fine with Neon's pooled
-  URL but adds a dep. `neon-http` is recommended for serverless and is
-  what Neon's docs lead with.
-- **Migrations at runtime (`migrate()` on cold start)**: rejected because
-  it slows cold starts and races between concurrent serverless invocations.
-- **`drizzle-kit push`** (no migration files): faster for prototyping but
-  loses an audit trail. Migrations make rollbacks and reviewability easier.
+- **Neon Auth (the previous approach)**: managed, but ties auth to a single
+  vendor and forced a JWT cookie-exchange dance to authenticate API calls.
+  Self-hosted Better Auth removes the vendor lock-in and the indirection.
+- **`drizzle-orm/neon-http`**: works for Neon but not portable. The
+  `postgres` driver works against any Postgres including Neon's pooled URL.
+- **JWT sessions instead of cookie sessions**: cookie sessions are the
+  Better Auth default and require zero client-side token handling.

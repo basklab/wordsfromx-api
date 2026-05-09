@@ -1,12 +1,12 @@
 import { Elysia, t } from "elysia";
-import { userFromCookieHeader } from "../lib/auth";
+import { userFromRequest } from "../lib/auth";
 import { translateMyMemory } from "../lib/mymemory";
 import { getCachedTranslation, saveCachedTranslation } from "../lib/translations";
 
 export const translateRoutes = new Elysia({ prefix: "/translate" }).post(
   "/",
-  async ({ body, headers, status }) => {
-    const user = await userFromCookieHeader(headers.cookie);
+  async ({ body, request, status }) => {
+    const user = await userFromRequest(request);
     if (!user) return status(401, { error: "unauthorized" });
 
     const term = body.term.trim();
