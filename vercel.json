@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "bunVersion": "1.x",
-  "buildCommand": "echo \"POSTGRES_HOST=$POSTGRES_HOST\" && echo \"DATABASE_URL=$DATABASE_URL\" && npx drizzle-kit migrate",
+  "installCommand": "npm install",
+  "buildCommand": "echo \"POSTGRES_HOST=$POSTGRES_HOST\" && echo \"DATABASE_URL=$DATABASE_URL\" && ./node_modules/.bin/drizzle-kit migrate",
   "regions": ["fra1"]
 }
