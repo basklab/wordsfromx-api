@@ -17,9 +17,6 @@ export const app = new Elysia()
     }
   })
   .get("/health", () => ({ ok: true }))
-  .get("/api/db", () => ({
-    POSTGRES_HOST: env.postgresHost ?? null,
-  }))
   .use(authRoutes)
   .use(bookRoutes)
   .use(epubRoutes)

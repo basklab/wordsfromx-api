@@ -26,7 +26,6 @@ const databaseUrl = first(
 
 const betterAuthSecret = first(runtimeEnv.BETTER_AUTH_SECRET);
 const betterAuthBaseUrl = first(runtimeEnv.BETTER_AUTH_URL);
-const postgresHost = first(runtimeEnv.POSTGRES_HOST);
 
 export const env = {
   port: Number(first(runtimeEnv.PORT, runtimeEnv.API_PORT) ?? 3001),
@@ -34,6 +33,5 @@ export const env = {
   databaseUrl,
   betterAuthSecret,
   betterAuthBaseUrl,
-  postgresHost,
   myMemoryEmail: runtimeEnv.MYMEMORY_EMAIL ?? "",
 };
