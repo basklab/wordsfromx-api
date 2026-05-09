@@ -12,9 +12,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "echo \"POSTGRES_HOST=$POSTGRES_HOST\" && echo \"DATABASE_URL=$DATABASE_URL\" && drizzle-kit migrate",
+    "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "build": "bun run db:migrate"
+    "vercel-build": "drizzle-kit migrate"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.6.9",
