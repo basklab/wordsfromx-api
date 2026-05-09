@@ -1,11 +1,29 @@
-import { app } from "./app";
+import { cors } from "@elysiajs/cors";
+import { Elysia } from "elysia";
 import { env } from "./env";
+import { authRoutes } from "./routes/auth";
+import { bookRoutes } from "./routes/books";
+import { epubRoutes } from "./routes/epub";
+import { profileRoutes } from "./routes/profile";
+import { translateRoutes } from "./routes/translate";
+import { vocabRoutes } from "./routes/vocab";
 
-export type { App } from "./app";
-export default { fetch: app.fetch };
+export const app = new Elysia()
+  .use(cors({ origin: env.webOrigins, credentials: true }))
+  .onBeforeHandle(({ request, status }) => {
+    const origin = request.headers.get("origin");
+    if (origin && !env.webOrigins.includes(origin)) {
+      return status(403, { error: "forbidden" });
+    }
+  })
+  .get("/health", () => ({ ok: true }))
+  .use(authRoutes)
+  .use(bookRoutes)
+  .use(epubRoutes)
+  .use(translateRoutes)
+  .use(profileRoutes)
+  .use(vocabRoutes);
 
-if (import.meta.main) {
-  console.log("Running on Bun version:", process.versions.bun);
-  app.listen(env.port);
-  console.log(`api: http://127.0.0.1:${env.port}`);
-}
+export type App = typeof app;
+
+export default app;
